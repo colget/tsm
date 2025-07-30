@@ -1,7 +1,7 @@
 
 # TSM: Traveling Salesman Mystery
 
-TSM is a novel Traveling Salesman Problem (TSP) solver with a self-improving loop that optimizes computational efficiency, reducing distance calculations from 10^158 to 510,000 for 100 cities. Designed for global logistics (e.g., Tesla’s supply chain, xAI’s optimization), it uses real-world coordinates and Haversine distances.
+TSM is a novel Traveling Salesman Problem (TSP) solver with a self-improving loop that optimizes computational efficiency, reducing distance calculations from 10^158 to 510,000 for 100 cities. Designed for global logistics  Haversine distances.
 
 ## Features
 - **Self-Improving Loop**: Tests brute-force vs. nearest neighbor + 2-opt, switching to fewer operations.
