@@ -1,9 +1,11 @@
+
 import csv
 import itertools
 import math
 import os
 from typing import List, Tuple
-
+import os
+os.chdir('C:/Users/colge/Desktop/tsm/')
 class OperationCounter:
     def __init__(self):
         self.count = 0
