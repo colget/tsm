@@ -1,4 +1,4 @@
-TSM or  Tavelling Salesman Mystery
+TSM  or  Tavelling Salesman Mystery
 
 
 This is an experimental Python program designed to explore solutions for the Traveling Salesperson Problem (TSP). It aims to find efficient routes that visit a set of points exactly once and return to the starting point.
@@ -18,9 +18,9 @@ To run the TSM solver, navigate to the project directory and execute the main Py
 
 Bash
 
-python your_main_script_name.py
+tsm.py
 Input and Output
-The program is designed to process a set of points (representing "cities"). The output will typically involve a representation of the calculated path and its total length. The exact format of input and output may vary based on the experiment's current configuration.
+The program is designed to process a set of points (representing "cities" in csv coordinates). The output will typically involve a representation of the calculated path and its total length. The exact format of input and output may vary based on the experiment's current configuration.
 
 Contributing
 As an experimental project, contributions are welcome to explore different approaches and improvements. Feel free to fork the repository, make your changes, and open a pull request.
@@ -28,5 +28,5 @@ As an experimental project, contributions are welcome to explore different appro
 License
 
 Contact
-Your Name - geraintosian@gmail.com
+geraintosian@gmail.com
 
