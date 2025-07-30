@@ -15,7 +15,7 @@ Optimizes global delivery routes, world tours, or supply chain logistics for Tes
 
 ## Installation
 
-   git clone https://github.com/yourusername/TSM.git
+   tsm.py
 
 
 
