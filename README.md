@@ -11,7 +11,7 @@ TSM is a novel Traveling Salesman Problem (TSP) solver with a self-improving loo
 - **Safety**: Skips brute-force for n > 15 to prevent computational overload.
 
 ## Use Case
-Optimizes global delivery routes, world tours, or supply chain logistics for Tesla or SpaceX. Example: Routes 50 cities in ~1 second.
+Optimizes global delivery routes, world tours, or supply chain logistics for example, Tesla or SpaceX. Example: Routes 50 cities in ~1 second.
 
 ## Installation
 
