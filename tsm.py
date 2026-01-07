@@ -3,7 +3,8 @@ import itertools
 import math
 import os
 from typing import List, Tuple
-import matplotlib.pyplot as plt  # Added for visualization
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 os.chdir('C:/Users/geraint/Desktop/GitHub/tsm')
 
@@ -15,9 +16,8 @@ class OperationCounter:
         self.count += 1
 
 def haversine_distance(city1: Tuple[float, float], city2: Tuple[float, float], counter: OperationCounter) -> float:
-    """Calculate Haversine distance between two cities (lat, lon in degrees) and count operation."""
     counter.increment()
-    R = 6371  # Earth's radius in km
+    R = 6371
     lat1, lon1 = math.radians(city1[0]), math.radians(city1[1])
     lat2, lon2 = math.radians(city2[0]), math.radians(city2[1])
     dlat, dlon = lat2 - lat1, lon2 - lon1
@@ -25,30 +25,15 @@ def haversine_distance(city1: Tuple[float, float], city2: Tuple[float, float], c
     c = 2 * math.asin(math.sqrt(a))
     return R * c
 
-def tsp_brute_force(cities: List[Tuple[float, float]], counter: OperationCounter) -> Tuple[float, List[int]]:
-    n = len(cities)
-    min_distance = float('inf')
-    best_path = []
-    
-    for perm in itertools.permutations(range(1, n)):
-        current_distance = haversine_distance(cities[0], cities[perm[0]], counter)
-        for i in range(len(perm) - 1):
-            current_distance += haversine_distance(cities[perm[i]], cities[perm[i+1]], counter)
-        current_distance += haversine_distance(cities[perm[-1]], cities[0], counter)
-        
-        if current_distance < min_distance:
-            min_distance = current_distance
-            best_path = [0] + list(perm) + [0]
-    
-    return min_distance, best_path
-
-def tsp_nearest_neighbor(cities: List[Tuple[float, float]], counter: OperationCounter) -> Tuple[float, List[int]]:
+def tsp_nearest_neighbor_2opt(cities: List[Tuple[float, float]], counter: OperationCounter, max_iterations: int = 50) -> Tuple[float, List[int], List[List[int]]]:
+    """Nearest neighbor + 2-opt with path history for animation."""
     n = len(cities)
     visited = [False] * n
     path = [0]
     visited[0] = True
     total_distance = 0.0
     
+    # Nearest neighbor phase
     current = 0
     for _ in range(n - 1):
         min_dist = float('inf')
@@ -63,16 +48,31 @@ def tsp_nearest_neighbor(cities: List[Tuple[float, float]], counter: OperationCo
         path.append(nearest)
         visited[nearest] = True
         current = nearest
-    
     total_distance += haversine_distance(cities[current], cities[0], counter)
     path.append(0)
     
-    return total_distance, path
-
-def measure_operations(func, cities: List[Tuple[float, float]]) -> Tuple[float, List[int], int]:
-    counter = OperationCounter()
-    distance, path = func(cities, counter)
-    return distance, path, counter.count
+    # Store history for animation
+    path_history = [path.copy()]
+    
+    # 2-opt improvement
+    improved = True
+    iteration = 0
+    while improved and iteration < max_iterations:
+        improved = False
+        for i in range(1, n - 1):
+            for j in range(i + 1, n):
+                old_dist = (haversine_distance(cities[path[i-1]], cities[path[i]], counter) +
+                            haversine_distance(cities[path[j]], cities[path[j+1]], counter))
+                new_dist = (haversine_distance(cities[path[i-1]], cities[path[j]], counter) +
+                            haversine_distance(cities[path[i]], cities[path[j+1]], counter))
+                if new_dist < old_dist:
+                    path[i:j+1] = path[i:j+1][::-1]
+                    total_distance += new_dist - old_dist
+                    improved = True
+        iteration += 1
+        path_history.append(path.copy())  # store every iteration
+    
+    return total_distance, path, path_history
 
 def read_cities_from_csv(filename: str) -> List[Tuple[float, float]]:
     cities = []
@@ -94,19 +94,32 @@ def save_route_to_csv(filename: str, cities: List[Tuple[float, float]], path: Li
         writer.writerow(["Total Distance (km)", f"{distance:.4f}", ""])
     print(f"Route saved to '{filename}'")
 
-def visualize_route(cities: List[Tuple[float, float]], path: List[int]):
-    """Plot the TSM path using matplotlib."""
-    lats = [cities[i][0] for i in path]
-    lons = [cities[i][1] for i in path]
+def animate_route(cities: List[Tuple[float, float]], path_history: List[List[int]]):
+    fig, ax = plt.subplots(figsize=(8,6))
     
-    plt.figure(figsize=(8, 6))
-    plt.plot(lons, lats, 'o-', color='blue', markersize=8)
-    for i, idx in enumerate(path):
-        plt.text(lons[i], lats[i], str(idx), fontsize=9, color='red')
-    plt.title("Traveling Salesman Route")
-    plt.xlabel("Longitude")
-    plt.ylabel("Latitude")
-    plt.grid(True)
+    lats = [c[0] for c in cities]
+    lons = [c[1] for c in cities]
+    
+    scat = ax.plot([], [], 'o-', color='blue', markersize=8)[0]
+    
+    for i, idx in enumerate(range(len(cities))):
+        ax.text(lons[i], lats[i], str(i), fontsize=9, color='red')
+    
+    ax.set_xlim(min(lons)-1, max(lons)+1)
+    ax.set_ylim(min(lats)-1, max(lats)+1)
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("Latitude")
+    ax.set_title("TSM Route Optimization (Nearest Neighbor + 2-Opt)")
+    ax.grid(True)
+    
+    def update(frame):
+        current_path = path_history[frame]
+        x = [cities[i][1] for i in current_path]
+        y = [cities[i][0] for i in current_path]
+        scat.set_data(x, y)
+        return scat,
+    
+    ani = animation.FuncAnimation(fig, update, frames=len(path_history), interval=500, blit=True, repeat=False)
     plt.show()
 
 def main():
@@ -121,19 +134,15 @@ def main():
         cities = [(random.uniform(-90, 90), random.uniform(-180, 180)) for _ in range(n)]
         print(f"Using {n} random cities for testing")
     
-    if n > 15:
-        current_function = tsp_nearest_neighbor
-    else:
-        current_function = tsp_brute_force
-    
-    distance, path, ops_count = measure_operations(current_function, cities)
-    print(f"Distance: {distance:.4f} km, Path: {path}, Operations: {ops_count}")
+    counter = OperationCounter()
+    distance, path, path_history = tsp_nearest_neighbor_2opt(cities, counter)
+    print(f"Final Distance: {distance:.4f} km, Path: {path}, Operations: {counter.count}")
     
     save_route_to_csv("tsm_route_output.csv", cities, path, distance)
     
-    visualize = input("Would you like to visualize the route? (yes/no): ").strip().lower()
+    visualize = input("Visualize the optimization process? (yes/no): ").strip().lower()
     if visualize == 'yes':
-        visualize_route(cities, path)
+        animate_route(cities, path_history)
 
 if __name__ == "__main__":
     main()
