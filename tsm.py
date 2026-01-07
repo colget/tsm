@@ -1,164 +1,139 @@
 import csv
+import itertools
 import math
-import matplotlib.pyplot as plt
+import os
 from typing import List, Tuple
-import random
+import matplotlib.pyplot as plt  # Added for visualization
 
-# ---------------------------
-# Distance Functions
-# ---------------------------
+os.chdir('C:/Users/geraint/Desktop/GitHub/tsm')
 
-def haversine_distance(city1: Tuple[float,float], city2: Tuple[float,float]) -> float:
-    """Haversine distance in km."""
-    R = 6371
+class OperationCounter:
+    def __init__(self):
+        self.count = 0
+    
+    def increment(self):
+        self.count += 1
+
+def haversine_distance(city1: Tuple[float, float], city2: Tuple[float, float], counter: OperationCounter) -> float:
+    """Calculate Haversine distance between two cities (lat, lon in degrees) and count operation."""
+    counter.increment()
+    R = 6371  # Earth's radius in km
     lat1, lon1 = math.radians(city1[0]), math.radians(city1[1])
     lat2, lon2 = math.radians(city2[0]), math.radians(city2[1])
-    dlat, dlon = lat2-lat1, lon2-lon1
-    a = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
-    return R*2*math.asin(math.sqrt(a))
+    dlat, dlon = lat2 - lat1, lon2 - lon1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    return R * c
 
-def compute_distance_matrix(cities: List[Tuple[float,float]]) -> List[List[float]]:
+def tsp_brute_force(cities: List[Tuple[float, float]], counter: OperationCounter) -> Tuple[float, List[int]]:
     n = len(cities)
-    dist = [[0.0]*n for _ in range(n)]
-    for i in range(n):
-        for j in range(i+1, n):
-            d = haversine_distance(cities[i], cities[j])
-            dist[i][j] = dist[j][i] = d
-    return dist
+    min_distance = float('inf')
+    best_path = []
+    
+    for perm in itertools.permutations(range(1, n)):
+        current_distance = haversine_distance(cities[0], cities[perm[0]], counter)
+        for i in range(len(perm) - 1):
+            current_distance += haversine_distance(cities[perm[i]], cities[perm[i+1]], counter)
+        current_distance += haversine_distance(cities[perm[-1]], cities[0], counter)
+        
+        if current_distance < min_distance:
+            min_distance = current_distance
+            best_path = [0] + list(perm) + [0]
+    
+    return min_distance, best_path
 
-# ---------------------------
-# Nearest Neighbor + 2-opt
-# ---------------------------
-
-def nearest_neighbor_tour(start_idx: int, dist: List[List[float]]) -> List[int]:
-    n = len(dist)
-    visited = [False]*n
-    tour = [start_idx]
-    visited[start_idx] = True
-    current = start_idx
-
-    for _ in range(n-1):
-        next_city = min((i for i in range(n) if not visited[i]),
-                        key=lambda i: dist[current][i])
-        tour.append(next_city)
-        visited[next_city] = True
-        current = next_city
-    tour.append(start_idx)
-    return tour
-
-def two_opt(tour: List[int], dist: List[List[float]], max_iter=100) -> List[int]:
-    n = len(tour)
-    improved = True
-    it = 0
-    while improved and it < max_iter:
-        improved = False
-        for i in range(1,n-2):
-            for j in range(i+1,n-1):
-                a,b = tour[i-1], tour[i]
-                c,d = tour[j], tour[j+1]
-                if dist[a][b] + dist[c][d] > dist[a][c] + dist[b][d]:
-                    tour[i:j+1] = reversed(tour[i:j+1])
-                    improved = True
-        it += 1
-    return tour
-
-def tour_distance(tour: List[int], dist: List[List[float]]) -> float:
-    return sum(dist[tour[i]][tour[i+1]] for i in range(len(tour)-1))
-
-# ---------------------------
-# Virtual Circle Clustering
-# ---------------------------
-
-def circle_clusters(cities: List[Tuple[float,float]], radius_factor=1.0) -> List[List[int]]:
+def tsp_nearest_neighbor(cities: List[Tuple[float, float]], counter: OperationCounter) -> Tuple[float, List[int]]:
     n = len(cities)
-    clusters = []
-    assigned = set()
+    visited = [False] * n
+    path = [0]
+    visited[0] = True
+    total_distance = 0.0
     
-    # Create all pair midpoints and half-distances
-    pairs = []
-    for i in range(n):
-        for j in range(i+1,n):
-            midpoint = ((cities[i][0]+cities[j][0])/2, (cities[i][1]+cities[j][1])/2)
-            radius = haversine_distance(cities[i], cities[j])*0.5*radius_factor
-            pairs.append((midpoint, radius, (i,j)))
+    current = 0
+    for _ in range(n - 1):
+        min_dist = float('inf')
+        nearest = None
+        for i in range(n):
+            if not visited[i]:
+                dist = haversine_distance(cities[current], cities[i], counter)
+                if dist < min_dist:
+                    min_dist = dist
+                    nearest = i
+        total_distance += min_dist
+        path.append(nearest)
+        visited[nearest] = True
+        current = nearest
     
-    # Sort pairs by radius descending
-    pairs.sort(key=lambda x: x[1], reverse=True)
+    total_distance += haversine_distance(cities[current], cities[0], counter)
+    path.append(0)
     
-    for center, r, (i,j) in pairs:
-        if i in assigned and j in assigned:
-            continue
-        # Find all cities within this circle
-        cluster = [k for k in range(n) if haversine_distance(cities[k], center) <= r]
-        # Skip if already assigned
-        cluster = [k for k in cluster if k not in assigned]
-        if cluster:
-            clusters.append(cluster)
-            assigned.update(cluster)
-    # Assign any remaining cities individually
-    for k in range(n):
-        if k not in assigned:
-            clusters.append([k])
-            assigned.add(k)
-    return clusters
+    return total_distance, path
 
-# ---------------------------
-# CSV and Visualization
-# ---------------------------
+def measure_operations(func, cities: List[Tuple[float, float]]) -> Tuple[float, List[int], int]:
+    counter = OperationCounter()
+    distance, path = func(cities, counter)
+    return distance, path, counter.count
 
-def read_cities_from_csv(filename: str) -> List[Tuple[float,float]]:
+def read_cities_from_csv(filename: str) -> List[Tuple[float, float]]:
     cities = []
-    with open(filename,'r') as f:
-        reader = csv.reader(f)
-        header = next(reader,None)
+    with open(filename, 'r') as file:
+        reader = csv.reader(file)
+        header = next(reader, None)
         for row in reader:
-            if len(row)>=2:
-                cities.append((float(row[0]), float(row[1])))
+            if len(row) >= 2:
+                lat, lon = float(row[0]), float(row[1])
+                cities.append((lat, lon))
     return cities
 
-def visualize_clusters(cities: List[Tuple[float,float]], clusters: List[List[int]], hub_idx=0):
-    colors = plt.cm.get_cmap('tab20', len(clusters))
-    plt.figure(figsize=(10,8))
-    for idx, cluster in enumerate(clusters):
-        lats = [cities[i][0] for i in cluster]
-        lons = [cities[i][1] for i in cluster]
-        plt.scatter(lons, lats, color=colors(idx), label=f'Cluster {idx+1}')
-        plt.scatter(cities[hub_idx][1], cities[hub_idx][0], color='black', s=100, label='Hub' if idx==0 else "")
-    plt.title("Delivery Clusters")
+def save_route_to_csv(filename: str, cities: List[Tuple[float, float]], path: List[int], distance: float):
+    with open(filename, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["City Index", "Latitude", "Longitude"])
+        for idx in path:
+            writer.writerow([idx, cities[idx][0], cities[idx][1]])
+        writer.writerow(["Total Distance (km)", f"{distance:.4f}", ""])
+    print(f"Route saved to '{filename}'")
+
+def visualize_route(cities: List[Tuple[float, float]], path: List[int]):
+    """Plot the TSM path using matplotlib."""
+    lats = [cities[i][0] for i in path]
+    lons = [cities[i][1] for i in path]
+    
+    plt.figure(figsize=(8, 6))
+    plt.plot(lons, lats, 'o-', color='blue', markersize=8)
+    for i, idx in enumerate(path):
+        plt.text(lons[i], lats[i], str(idx), fontsize=9, color='red')
+    plt.title("Traveling Salesman Route")
     plt.xlabel("Longitude")
     plt.ylabel("Latitude")
-    plt.legend()
     plt.grid(True)
     plt.show()
 
-# ---------------------------
-# Main Program
-# ---------------------------
-
 def main():
-    input_file = "delivery_points.csv"
-    hub_idx = 0  # First city is the warehouse/hub
-    cities = read_cities_from_csv(input_file)
-    print(f"Loaded {len(cities)} delivery points")
+    input_file = input("Enter CSV file name with city coordinates (e.g., cities.csv): ").strip()
+    try:
+        cities = read_cities_from_csv(input_file)
+        n = len(cities)
+        print(f"Loaded {n} cities from {input_file}")
+    except Exception:
+        import random
+        n = 10
+        cities = [(random.uniform(-90, 90), random.uniform(-180, 180)) for _ in range(n)]
+        print(f"Using {n} random cities for testing")
     
-    dist_matrix = compute_distance_matrix(cities)
+    if n > 15:
+        current_function = tsp_nearest_neighbor
+    else:
+        current_function = tsp_brute_force
     
-    # Cluster cities into zones for vehicles
-    clusters = circle_clusters(cities, radius_factor=1.0)
-    print(f"Generated {len(clusters)} clusters for vehicles")
+    distance, path, ops_count = measure_operations(current_function, cities)
+    print(f"Distance: {distance:.4f} km, Path: {path}, Operations: {ops_count}")
     
-    visualize_clusters(cities, clusters, hub_idx=hub_idx)
+    save_route_to_csv("tsm_route_output.csv", cities, path, distance)
     
-    # Solve TSP for each cluster
-    for v, cluster in enumerate(clusters):
-        # Include hub in cluster
-        cluster_with_hub = [hub_idx] + [c for c in cluster if c != hub_idx]
-        submatrix = [[dist_matrix[i][j] for j in cluster_with_hub] for i in cluster_with_hub]
-        tour = nearest_neighbor_tour(0, submatrix)
-        tour = two_opt(tour, submatrix)
-        distance = tour_distance(tour, submatrix)
-        tour_cities = [cluster_with_hub[i] for i in tour]
-        print(f"Vehicle {v+1}: {len(cluster)} stops, Distance = {distance:.2f} km, Tour = {tour_cities}")
+    visualize = input("Would you like to visualize the route? (yes/no): ").strip().lower()
+    if visualize == 'yes':
+        visualize_route(cities, path)
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
