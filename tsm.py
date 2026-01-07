@@ -5,7 +5,7 @@ import math
 import os
 from typing import List, Tuple
 import os
-os.chdir('C:/Users/colge/Desktop/tsm/')
+os.chdir('C:/Users/geraint/Desktop/GitHub/tsm')
 class OperationCounter:
     def __init__(self):
         self.count = 0
